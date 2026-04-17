@@ -3,6 +3,7 @@ Business Logic Handler
 Encapsulates all data processing and business logic as a bridge between model and UI
 """
 import os
+import platform
 
 # Disable tokenizers parallelism to avoid fork warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -75,6 +76,10 @@ def _cleanup_accelerator_memory() -> None:
         empty_cache = getattr(mps, "empty_cache", None)
         if callable(empty_cache):
             empty_cache()
+
+
+def _is_intel_mac() -> bool:
+    return platform.system() == "Darwin" and platform.machine() == "x86_64"
 
 
 @lru_cache(maxsize=None)
@@ -643,7 +648,12 @@ class AceStepHandler:
                 logger.info("[initialize_service] Using shared VAE")
             else:
                 if os.path.exists(vae_checkpoint_path):
-                    self.vae = AutoencoderOobleck.from_pretrained(vae_checkpoint_path)
+                    vae_load_kwargs = {}
+                    if _is_intel_mac():
+                        # On Intel macOS with the last supported PyTorch wheel line, the
+                        # meta-tensor loading path can crash inside weight_norm during VAE init.
+                        vae_load_kwargs["low_cpu_mem_usage"] = False
+                    self.vae = AutoencoderOobleck.from_pretrained(vae_checkpoint_path, **vae_load_kwargs)
                     # Use bfloat16 for VAE on GPU, otherwise use self.dtype (float32 on CPU)
                     vae_dtype = self._get_vae_dtype(device)
                     if not self.offload_to_cpu:
