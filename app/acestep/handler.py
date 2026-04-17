@@ -195,6 +195,9 @@ class AceStepHandler:
         if device in ["cuda", "xpu"]:
             return [torch.bfloat16]
         if device == "mps":
+            if _is_intel_mac():
+                # Intel-mac MPS is numerically unstable here with reduced precision.
+                return [torch.float32]
             candidates: List[torch.dtype] = []
             for dtype in [torch.bfloat16, torch.float16, torch.float32]:
                 if dtype == torch.float32 or _mps_dtype_supported(_dtype_name(dtype)):
@@ -3030,6 +3033,11 @@ class AceStepHandler:
             time_costs["offload_time_cost"] = self.current_offload_cost
             logger.debug(f"[generate_music] pred_latents: {pred_latents.shape}, dtype={pred_latents.dtype} {pred_latents.min()=}, {pred_latents.max()=}, {pred_latents.mean()=} {pred_latents.std()=}")
             logger.debug(f"[generate_music] time_costs: {time_costs}")
+            if not torch.isfinite(pred_latents).all():
+                raise RuntimeError(
+                    f"Generation produced non-finite latents on {self.device} with dtype {_dtype_name(self.dtype)}. "
+                    "Use ACE_STEP_DTYPE=float32 on this machine."
+                )
             if progress:
                 progress(0.8, desc="Decoding audio...")
             logger.info("[generate_music] Decoding latents with VAE...")
