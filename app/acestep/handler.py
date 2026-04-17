@@ -1956,15 +1956,16 @@ class AceStepHandler:
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         
+        refer_audio_dtype = self._get_vae_dtype(self.device)
         for ii, refer_audio_list in enumerate(refer_audios):
             if refer_audio_list is None:
                 continue
             if isinstance(refer_audio_list, list):
                 for idx, refer_audio in enumerate(refer_audio_list):
                     if refer_audio is not None and isinstance(refer_audio, torch.Tensor):
-                        refer_audio_list[idx] = refer_audio.to(self.device).to(torch.bfloat16)
+                        refer_audio_list[idx] = refer_audio.to(self.device).to(refer_audio_dtype)
             elif isinstance(refer_audio_list, torch.Tensor):
-                refer_audios[ii] = refer_audio_list.to(self.device)
+                refer_audios[ii] = refer_audio_list.to(self.device).to(refer_audio_dtype)
         
         if vocal_languages is None:
             vocal_languages = self._create_fallback_vocal_languages(batch_size)
